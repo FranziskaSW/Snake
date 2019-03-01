@@ -53,6 +53,7 @@ class Linear(bp.Policy):
         feature_mat = np.matrix(self.last_features)
         delta_mat = np.matrix(self.last_deltas)
 
+        # print(feature_mat, delta_mat, delta_mat.dot(feature_mat)/len(self.last_deltas))
         self.weights = self.weights - self.learning_rate * (delta_mat.dot(feature_mat))/len(self.last_deltas)
         self.weights = self.weights/self.weights.sum()
 
@@ -83,7 +84,7 @@ class Linear(bp.Policy):
         field = board[r, c]
 
         idx = field+1
-        features = self.features
+        features = np.zeros(self.feature_num)
         features[idx] = 1
         q_value = self.weights[0, idx]
         return q_value, features
@@ -104,14 +105,14 @@ class Linear(bp.Policy):
                 res['q_values'][self.act2idx[a]] = q_value
 
             q_max, q_max_idx = np.max(res['q_values']), np.argmax(res['q_values'])
-            features = res['features'][q_max_idx]
+            # features = res['features'][q_max_idx]
             action = self.idx2act[q_max_idx]
+
         if round <= 1:
-            delta = 0
+            pass
         else:
             prev_qvalue, prev_features = self.getQValue(prev_state, prev_action)
             delta = prev_qvalue - (reward + (self.gamma * q_max))
-
-        self.last_features.append(prev_features) # is this is?
-        self.last_deltas.append(delta)
+            self.last_features.append(prev_features) # is this it?
+            self.last_deltas.append(delta)
         return action
