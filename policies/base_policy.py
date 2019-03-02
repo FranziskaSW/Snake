@@ -61,7 +61,8 @@ class Policy(mp.Process):
         'E': {'L': 'N', 'R': 'S', 'F': 'E'}
     }
 
-    def __init__(self, policy_args, board_size, stateq, actq, modelq, logq, id, game_duration, score_scope, dir_name):   # TODO REMOVE dir_name AFTER TESTING
+
+    def __init__(self, policy_args, board_size, stateq, actq, modelq, logq, id, game_duration, score_scope):
         """
         initialize the policy.
         :param policy_args: the arguments for the specific policy to be added as members.
@@ -83,7 +84,6 @@ class Policy(mp.Process):
         self.id = id
         self.game_duration = game_duration
         self.score_scope = score_scope
-        self.dir_name = dir_name  # TODO REMOVE AFTER TESTING
         self.__dict__.update(self.cast_string_args(policy_args))
 
 
@@ -96,9 +96,6 @@ class Policy(mp.Process):
         :param type: the type of the message (e.g. "error" or "debug"...)
         """
         self.lq.put((str(self.id), type, msg))
-
-    def put_stats(self):  # TODO REMOVE AFTER TESTING
-        pass
 
 
     def run(self):
@@ -119,7 +116,6 @@ class Policy(mp.Process):
                     self.learn(round, prev_state, prev_action, reward, new_state, too_slow)
                 else:
                     self.aq.put((round, self.act(round, prev_state, prev_action, reward, new_state, too_slow)))
-            self.put_stats()  # TODO REMOVE AFTER TESTING
 
         except Exception as e:
             tb_str = traceback.format_exc(e)
