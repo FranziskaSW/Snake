@@ -231,8 +231,10 @@ class MyPolicy(bp.Policy):
         board, head = new_state
         new_features = np.zeros([len(self.act2idx), self.feature_num])
 
-        for a in self.act2idx:
+        random_actions = np.random.permutation(bp.Policy.ACTIONS)
+        for a in self.act2idx: # enumerate(random_actions):
             new_features[self.act2idx[a]] = self.getFeature_2(board, head, a)
+            #new_features[i] = self.getFeature_2(board, head, a)
 
         if round >=2:  # update to memory from previous round (prev_state)
             prev_board, prev_head = prev_state
@@ -245,7 +247,7 @@ class MyPolicy(bp.Policy):
                 idx = np.random.choice(range(0, self.memory_length))
                 self.memory[idx] = memory_update
 
-        if round == (self.game_duration-1):
+        if round == (self.game_duration-1):  # TODO: remove before assignment
             losses = self.loss
             with open(cwd + "/losses.pickle", "wb") as f:
                 pickle.dump(losses, f)
@@ -257,6 +259,7 @@ class MyPolicy(bp.Policy):
         else:
             q_values = self.Q.model.predict(new_features, batch_size=3)
             a_idx = np.argmax(q_values)
+            # action = random_actions[a_idx]
             action = self.idx2act[a_idx]
 
         return action
