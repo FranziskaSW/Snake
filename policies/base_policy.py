@@ -180,4 +180,3 @@ class Policy(mp.Process):
         :return: an action (from Policy.Actions) in response to the new_state.
         """
         raise NotImplementedError
-
