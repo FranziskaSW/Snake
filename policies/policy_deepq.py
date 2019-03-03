@@ -1,13 +1,18 @@
 from policies import base_policy as bp
-from policies import DQNetwork as DQN
+# from policies import DQNetwork as DQN
 import numpy as np
 from keras.models import Sequential
 from keras.layers import *
 import keras
 import os
 import pickle # TODO REMOVE
+import math
 
-global cwd
+from keras.models import Sequential
+from keras.layers import *
+import keras
+
+global cwd # TODO remove
 cwd = os.getcwd()
 
 
@@ -18,9 +23,42 @@ LEARNING_RATE = 0.01
 NUM_ACTIONS = 3  # (L, R, F)
 VICINITY = 3
 MAX_DISTANCE = 2
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 GAMMA = 0.5
 DROPOUT_RATE = 0.2
+
+
+class DQNetwork():
+    def __init__(self, input_shape, alpha, gamma,
+                 dropout_rate, num_actions, batch_size, learning_rate, feature_num):
+        self.alpha = alpha
+        self.gamma = gamma
+        self.dropout_rate = dropout_rate
+        self.input_shape = input_shape
+        self.feature_num = feature_num
+        self.num_actions = num_actions
+        self.batch_size = batch_size
+        self.learning_rate = learning_rate
+        self.act2idx = {'L': 0, 'R': 1, 'F': 2}
+
+        self.model = Sequential()
+        self.model.add(Dense(64, activation='relu', input_shape=self.input_shape))
+        self.model.add(Dropout(dropout_rate))
+        self.model.add(Dense(1))
+        adam = keras.optimizers.Adam(lr=self.learning_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-8)
+        self.model.compile(loss='mean_squared_error', optimizer=adam)
+
+    def learn(self, batches):
+        bs_int = int(self.batch_size)
+        x = np.zeros([bs_int, self.feature_num])
+        y = np.zeros(bs_int)
+        for idx, batch in enumerate(batches):
+            x[idx] = batch['s_t']
+            q_hat = (batch['r_t'] + self.gamma * np.max(self.model.predict(batch['s_tp1']))) # here need to do loop as well, which one of the 3 actions gives best q-value.
+            y[idx] = q_hat
+
+        h = self.model.fit(x, y, batch_size=bs_int, epochs=1, verbose=0)
+        return h.history['loss'][0]
 
 class MyPolicy(bp.Policy):
     """
@@ -42,14 +80,16 @@ class MyPolicy(bp.Policy):
         self.feature_num = (self.vicinity*2+1)**2*11 +1  # (self.max_distance+1+1)*11 + 1 + ((self.vicinity*2+1)**2*11)
         self.section_indices = np.array(range((self.vicinity*2+1)**2)) * 11
         self.input_shape = (self.feature_num, )
-        self.Q = DQN.DQNetwork(input_shape=self.input_shape, alpha=0.5, gamma=0.8,
-                               dropout_rate=DROPOUT_RATE, num_actions=NUM_ACTIONS, batch_size=self.batch_size,
-                               learning_rate=self.learning_rate, feature_num=self.feature_num)
+        self.Q = DQNetwork(input_shape=self.input_shape, alpha=0.5, gamma=0.8,
+                           dropout_rate=DROPOUT_RATE, num_actions=NUM_ACTIONS, batch_size=self.batch_size,
+                           learning_rate=self.learning_rate, feature_num=self.feature_num)
         self.memory = []
         self.loss = []
         self.act2idx = {'L': 0, 'R': 1, 'F': 2}
         self.idx2act = {0: 'L', 1: 'R', 2: 'F'}
         self.memory_length = int(self.batch_size*20)
+        self.epsilon_rate = EPSILON_RATE
+        self.too_slow_count = 0
 
 
     def put_stats(self):  # TODO remove after testing
@@ -71,7 +111,6 @@ class MyPolicy(bp.Policy):
             random_batches = np.random.choice(self.memory, bs_int)
             loss = self.Q.learn(random_batches)
             self.loss.append(loss)
-        self.epsilon = self.epsilon * EPSILON_RATE
 
         try:
             if round % 100 == 0:
@@ -125,55 +164,6 @@ class MyPolicy(bp.Policy):
         if direction == 'S': return np.rot90(map, k=2)
         if direction == 'W': return np.rot90(map, k=-1)
 
-    def getFeature(self, board, head, action):
-        head_pos, direction = head
-        moving_dir = bp.Policy.TURNS[direction][action]
-        next_position = head_pos.move(moving_dir)
-        map_after = self.getVicinityMap(board, next_position, moving_dir)
-        features = map_after.flatten()
-        return features
-    #
-    # def getFeature_2(self, board, head, action):
-    #     head_pos, direction = head
-    #     moving_dir = bp.Policy.TURNS[direction][action]
-    #     # next_position = head_pos.move(moving_dir)
-    #     next_position = (5, 5)
-    #     map_v = self.getVicinityMap(board, next_position, moving_dir)
-    #     center = (self.vicinity, self.vicinity)
-    #     features = np.zeros(self.feature_num)
-    #
-    #     for field_value in range(-1, 10):
-    #         # # how many elements do we have in vicinity
-    #         # offset = 1
-    #         # feature_idx = int(field_value) + offset
-    #         # features[feature_idx] = (map_v == field_value).sum()
-    #
-    #         # how long are we
-    #         features[-1] = (board == self.id).sum()
-    #
-    #         # what is in next and second next field?
-    #         m = (map_v == field_value)
-    #         field_positions = np.matrix(np.where(m)).T
-    #
-    #         distances = []
-    #         for field_pos in field_positions:
-    #             x, y = field_pos.tolist()[0][0], field_pos.tolist()[0][1]
-    #             dist = abs(center[0] - x) + abs(center[1] - y)
-    #             distances.append(dist)
-    #
-    #         # fill feature vector
-    #         for dist in range(0, self.max_distance + 1):
-    #             offset = 12
-    #             if dist in distances:
-    #                 idx = int(field_value) + (dist * 11) + offset
-    #                 features[idx] = 1
-    #
-    #         # f = np.hstack([features, map_v.flatten()])
-    #         print(features)
-    #         # features = features/features.sum()
-    #
-    #     return features
-
     def getVicinityRepresentation(self, VicinityMap):
         symbols = np.matrix(VicinityMap.flatten())
         symbols = symbols[0]
@@ -191,50 +181,33 @@ class MyPolicy(bp.Policy):
         moving_dir = bp.Policy.TURNS[direction][action]
         next_position = head_pos.move(moving_dir)
         map_v = self.getVicinityMap(board, next_position, moving_dir)
-        center = (self.vicinity, self.vicinity)
-
-        # features_1 = np.zeros((self.max_distance+1+1)*11 + 1)
-        #
-        # # how long are we
-        # features_1[0] = (board == self.id).sum()
-        #
-        # for field_value in range(-1, 10):
-        #     # how many elements do we have in vicinity
-        #     offset = 2
-        #     feature_idx = int(field_value) + offset
-        #     features_1[feature_idx] = (map_v == field_value).sum()
-        #
-        #     m = (map_v == field_value)
-        #     field_positions = np.matrix(np.where(m)).T
-        #
-        #     distances = []
-        #     for field_pos in field_positions:
-        #         x, y = field_pos.tolist()[0][0], field_pos.tolist()[0][1]
-        #         dist = abs(center[0] - x) + abs(center[1] - y)
-        #         distances.append(dist)
-        #
-        #     # fill feature vector
-        #     for dist in range(0, self.max_distance + 1):
-        #         offset = 13
-        #         if dist in distances:
-        #             idx = int(field_value) + (dist * 11) + offset
-        #             features_1[idx] = 1
         features_1 = np.array((board==self.id).sum())
         features_2 = self.getVicinityRepresentation(map_v)
-        # print('features1 shape 45, features 2 shape 539 ', features_1.shape, features_2.shape)
         features = np.append(features_1, features_2)
-        # print('features 539 + 45 ',features.shape)
         features = features/features.sum()
         return features
 
     def act(self, round, prev_state, prev_action, reward, new_state, too_slow):
+
+        if too_slow & (round >= 100):
+            self.batch_size = math.ceil(self.batch_size/2)
+
+            self.log(str(self.id) + "lower batch size to " + str(self.batch_size), 'action')  # TODO: remove
+            self.too_slow_count = 0
+        else:
+            self.too_slow_count += 1
+
+        if self.too_slow_count == 200:
+            self.log("reset batch size to " + str(self.batch_size*2), 'action')  # TODO: remove
+            self.batch_size = self.batch_size*2
+
+
         board, head = new_state
         new_features = np.zeros([len(self.act2idx), self.feature_num])
 
         random_actions = np.random.permutation(bp.Policy.ACTIONS)
-        for a in self.act2idx: # enumerate(random_actions):
-            new_features[self.act2idx[a]] = self.getFeature_2(board, head, a)
-            #new_features[i] = self.getFeature_2(board, head, a)
+        for i, a in enumerate(random_actions):
+            new_features[i] = self.getFeature_2(board, head, a)
 
         if round >=2:  # update to memory from previous round (prev_state)
             prev_board, prev_head = prev_state
@@ -259,7 +232,6 @@ class MyPolicy(bp.Policy):
         else:
             q_values = self.Q.model.predict(new_features, batch_size=3)
             a_idx = np.argmax(q_values)
-            # action = random_actions[a_idx]
-            action = self.idx2act[a_idx]
+            action = random_actions[a_idx]
 
         return action
