@@ -90,6 +90,7 @@ class MyPolicy(bp.Policy):
         self.memory_length = int(self.batch_size*20)
         self.epsilon_rate = EPSILON_RATE
         self.not_too_slow_count = 0
+        self.bs_init = self.batch_size
 
 
     def put_stats(self):  # TODO remove after testing
@@ -176,7 +177,7 @@ class MyPolicy(bp.Policy):
         features[idx_int] = 1
         return features
 
-    def getFeature_2(self, board, head, action):
+    def getFeatures(self, board, head, action):
         head_pos, direction = head
         moving_dir = bp.Policy.TURNS[direction][action]
         next_position = head_pos.move(moving_dir)
@@ -197,7 +198,7 @@ class MyPolicy(bp.Policy):
         else:
             self.not_too_slow_count += 1
 
-        if (self.not_too_slow_count == 200) & (self.batch_size < BATCH_SIZE):
+        if (self.not_too_slow_count == 200) & (self.batch_size < self.bs_init):
             self.log("reset batch size to " + str(self.batch_size*2), 'action')  # TODO: remove
             self.batch_size = int(self.batch_size*2)
 
@@ -207,11 +208,11 @@ class MyPolicy(bp.Policy):
 
         random_actions = np.random.permutation(bp.Policy.ACTIONS)
         for i, a in enumerate(random_actions):
-            new_features[i] = self.getFeature_2(board, head, a)
+            new_features[i] = self.getFeatures(board, head, a)
 
         if round >=2:  # update to memory from previous round (prev_state)
             prev_board, prev_head = prev_state
-            prev_feature = self.getFeature_2(prev_board, prev_head, prev_action)
+            prev_feature = self.getFeatures(prev_board, prev_head, prev_action)
             memory_update = {'s_t': prev_feature, 'a_t': self.act2idx[prev_action], 'r_t': reward, 's_tp1': new_features}
 
             if len(self.memory) < self.memory_length:
