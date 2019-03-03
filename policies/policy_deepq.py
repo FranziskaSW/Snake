@@ -89,7 +89,7 @@ class MyPolicy(bp.Policy):
         self.idx2act = {0: 'L', 1: 'R', 2: 'F'}
         self.memory_length = int(self.batch_size*20)
         self.epsilon_rate = EPSILON_RATE
-        self.too_slow_count = 0
+        self.not_too_slow_count = 0
 
 
     def put_stats(self):  # TODO remove after testing
@@ -193,13 +193,13 @@ class MyPolicy(bp.Policy):
             self.batch_size = math.ceil(self.batch_size/2)
 
             self.log(str(self.id) + "lower batch size to " + str(self.batch_size), 'action')  # TODO: remove
-            self.too_slow_count = 0
+            self.not_too_slow_count = 0
         else:
-            self.too_slow_count += 1
+            self.not_too_slow_count += 1
 
-        if self.too_slow_count == 200:
+        if (self.not_too_slow_count == 200) & (self.batch_size < BATCH_SIZE):
             self.log("reset batch size to " + str(self.batch_size*2), 'action')  # TODO: remove
-            self.batch_size = self.batch_size*2
+            self.batch_size = int(self.batch_size*2)
 
 
         board, head = new_state
