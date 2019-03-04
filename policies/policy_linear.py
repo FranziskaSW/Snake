@@ -36,7 +36,6 @@ class Linear(bp.Policy):
         self.last_deltas = []
         self.epsilon_rate = EPSILON_RATE
 
-
     def getQValue(self, state, action):
         """
         Creates the features of the next state and calculates the q-value accordingly.
