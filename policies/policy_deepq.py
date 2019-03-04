@@ -16,47 +16,7 @@ VICINITY = 3
 DROPOUT_RATE = 0.2
 
 
-class DQNetwork():
-    """
-    The neural network that is used to approximate and update the Q-function
-    """
-    def __init__(self, input_shape, gamma, dropout_rate, num_actions,
-                 batch_size, learning_rate, feature_num):
-        self.gamma = gamma
-        self.dropout_rate = dropout_rate
-        self.input_shape = input_shape
-        self.feature_num = feature_num
-        self.num_actions = num_actions
-        self.batch_size = batch_size
-        self.learning_rate = learning_rate
-        self.act2idx = {'L': 0, 'R': 1, 'F': 2}
-
-        self.model = Sequential()
-        self.model.add(Dense(64, activation='relu', input_shape=self.input_shape))
-        self.model.add(Dropout(dropout_rate))
-        self.model.add(Dense(1))
-        adam = keras.optimizers.Adam(lr=self.learning_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-8)
-        self.model.compile(loss='mean_squared_error', optimizer=adam)
-
-    def learn(self, batches):
-        """
-        update of the Q-function via training of the net
-        Uses a random sample of transition tupels (state, action, reward, nest_state) and the current net
-        to predict the targets y from the currrent state (called x).
-        Then uses those x and y to train the model - update the Q-function.
-        """
-        bs_int = int(self.batch_size)
-        x = np.zeros([bs_int, self.feature_num])
-        y = np.zeros(bs_int)
-        for idx, batch in enumerate(batches):
-            x[idx] = batch['s_t']
-            q_hat = (batch['r_t'] + self.gamma * np.max(self.model.predict(batch['s_tp1'])))
-            y[idx] = q_hat
-
-        self.model.fit(x, y, batch_size=bs_int, epochs=1, verbose=0)
-
-
-class MyPolicy(bp.Policy):
+class Custom777934738(bp.Policy):
     """
     A policy which uses a neural network to learn the dependency between the state representation and the reward.
     Calculates the q-value for the possible actions and acts according to the best q-value.
@@ -81,9 +41,6 @@ class MyPolicy(bp.Policy):
         self.feature_num = (self.vicinity*2+1)**2*11 +1
         self.section_indices = np.array(range((self.vicinity*2+1)**2)) * 11
         self.input_shape = (self.feature_num, )
-        self.Q = DQNetwork(input_shape=self.input_shape, gamma=GAMMA,
-                           dropout_rate=DROPOUT_RATE, num_actions=NUM_ACTIONS, batch_size=self.batch_size,
-                           learning_rate=self.learning_rate, feature_num=self.feature_num)
         self.memory = []
         self.act2idx = {'L': 0, 'R': 1, 'F': 2}
         self.idx2act = {0: 'L', 1: 'R', 2: 'F'}
@@ -91,6 +48,33 @@ class MyPolicy(bp.Policy):
         self.epsilon_rate = EPSILON_RATE
         self.not_too_slow_count = 0
         self.bs_init = self.batch_size
+
+        # create the network
+        self.model = Sequential()
+        self.model.add(Dense(64, activation='relu', input_shape=self.input_shape))
+        self.model.add(Dropout(DROPOUT_RATE))
+        self.model.add(Dense(1))
+        adam = keras.optimizers.Adam(lr=self.learning_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-8)
+        self.model.compile(loss='mean_squared_error', optimizer=adam)
+
+
+    def train_model(self, batches):
+        """
+        update of the Q-function via training of the net
+        Uses a random sample of transition tupels (state, action, reward, nest_state) and the current net
+        to predict the targets y from the currrent state (called x).
+        Then uses those x and y to train the model - update the Q-function.
+        """
+        bs_int = int(self.batch_size)
+        x = np.zeros([bs_int, self.feature_num])
+        y = np.zeros(bs_int)
+        for idx, batch in enumerate(batches):
+            x[idx] = batch['s_t']
+            q_hat = (batch['r_t'] + self.gamma * np.max(self.model.predict(batch['s_tp1'])))
+            y[idx] = q_hat
+
+        self.model.fit(x, y, batch_size=bs_int, epochs=1, verbose=0)
+
 
     def learn(self, round, prev_state, prev_action, reward, new_state, too_slow):
         """
@@ -106,7 +90,7 @@ class MyPolicy(bp.Policy):
         if round >= self.batch_size:
             bs_int = int(self.batch_size)
             random_batches = np.random.choice(self.memory, bs_int)
-            self.Q.learn(random_batches)
+            self.train_model(random_batches)
 
         try:
             if round % 100 == 0:
@@ -250,7 +234,7 @@ class MyPolicy(bp.Policy):
             action = np.random.choice(bp.Policy.ACTIONS)
 
         else:
-            q_values = self.Q.model.predict(new_features, batch_size=3)
+            q_values = self.model.predict(new_features, batch_size=3)
             a_idx = np.argmax(q_values)
             action = random_actions[a_idx]
 

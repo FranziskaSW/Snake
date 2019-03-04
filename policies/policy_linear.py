@@ -10,7 +10,8 @@ LEARNING_TIME = bp.LEARNING_TIME
 
 FEATURE_NUM = 11
 
-class Linear(bp.Policy):
+
+class Linear777934738(bp.Policy):
     """
     A policy which learns a linear dependency between the value of the next field and the reward. Calculates the q-value
     for the possible actions and acts according to the best q-value.
